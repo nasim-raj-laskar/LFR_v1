@@ -3,7 +3,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-// Pin definitions
+// Pin definitions (from fastlinefollower.ino)
 #define MOTOR_R_PWM 13
 #define MOTOR_R_IN1 14
 #define MOTOR_R_IN2 12
@@ -32,7 +32,6 @@
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 #define NUM_SENSORS 16
-
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 
 // Encoder variables
@@ -51,16 +50,13 @@ int testMode = 0; // 0: Motor, 1: Encoder, 2: MUX, 3: Buttons, 4: Buzzer, 5: OLE
 const char* testNames[] = {"Motor", "Encoder", "MUX", "Buttons", "Buzzer", "OLED"};
 const int numTests = 6;
 
-// Motor control using PWM channels
-// channel 0 = left motor, channel 1 = right motor
 void setMotors(int left, int right) {
   digitalWrite(MOTOR_L_IN1, left > 0);
   digitalWrite(MOTOR_L_IN2, left < 0);
   digitalWrite(MOTOR_R_IN1, right > 0);
   digitalWrite(MOTOR_R_IN2, right < 0);
-
-  ledcWrite(0, abs(left));  // channel 0 for left motor
-  ledcWrite(1, abs(right)); // channel 1 for right motor
+  ledcWrite(MOTOR_L_PWM, abs(left));
+  ledcWrite(MOTOR_R_PWM, abs(right));
 }
 
 void beep() {
@@ -70,47 +66,34 @@ void beep() {
 }
 
 void setup() {
-  // Motor pins
+  // Pins
+  pinMode(MOTOR_L_PWM, OUTPUT);
   pinMode(MOTOR_L_IN1, OUTPUT);
   pinMode(MOTOR_L_IN2, OUTPUT);
+  pinMode(MOTOR_R_PWM, OUTPUT);
   pinMode(MOTOR_R_IN1, OUTPUT);
   pinMode(MOTOR_R_IN2, OUTPUT);
   pinMode(MOTOR_STBY, OUTPUT);
   digitalWrite(MOTOR_STBY, HIGH);
-
-  // PWM setup (20 kHz, 8-bit resolution)
-  ledcSetup(0, 20000, 8);   // channel 0 for left motor
-  ledcAttachPin(MOTOR_L_PWM, 0);
-
-  ledcSetup(1, 20000, 8);   // channel 1 for right motor
-  ledcAttachPin(MOTOR_R_PWM, 1);
-
-  // Encoder pins
+  ledcAttach(MOTOR_L_PWM, 20000, 8);
+  ledcAttach(MOTOR_R_PWM, 20000, 8);
   pinMode(ENCODER_L_A, INPUT_PULLUP);
   pinMode(ENCODER_L_B, INPUT_PULLUP);
   pinMode(ENCODER_R_A, INPUT_PULLUP);
   pinMode(ENCODER_R_B, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(ENCODER_L_A), encoderL_ISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(ENCODER_R_A), encoderR_ISR, CHANGE);
-
-  // Multiplexer pins
   pinMode(MUX_S0, OUTPUT);
   pinMode(MUX_S1, OUTPUT);
   pinMode(MUX_S2, OUTPUT);
   pinMode(MUX_S3, OUTPUT);
   pinMode(MUX_SIG, INPUT);
-
-  // Buttons
   pinMode(BTN_START, INPUT_PULLUP);
   pinMode(BTN_CAL, INPUT_PULLUP);
   pinMode(BTN_MODE, INPUT_PULLUP);
   pinMode(BTN_RESET, INPUT_PULLUP);
-
-  // Buzzer
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW);
-
-  // OLED
   Wire.begin(OLED_SDA, OLED_SCL);
   display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
   display.setRotation(2);
@@ -122,7 +105,6 @@ void setup() {
   display.display();
   showAjeetJain();
   delay(1000);
-
   Serial.begin(115200);
 }
 
@@ -139,12 +121,10 @@ void loop() {
   }
   display.display();
   showAjeetJain();
-
   // BTN_MODE cycles test, BTN_START selects
   static int lastMode = HIGH, lastStart = HIGH;
   int curMode = digitalRead(BTN_MODE);
   int curStart = digitalRead(BTN_START);
-
   if (lastMode == HIGH && curMode == LOW) {
     testMode = (testMode + 1) % numTests;
     delay(200);
@@ -167,7 +147,6 @@ void runTest(int mode) {
   display.display();
   showAjeetJain();
   delay(500);
-
   if (mode == 0) { // Motor
     setMotors(200, 200);
     display.clearDisplay(); display.setCursor(0,0); display.println("Motor FWD"); display.display(); showAjeetJain(); delay(1000);
@@ -175,9 +154,9 @@ void runTest(int mode) {
     display.clearDisplay(); display.setCursor(0,0); display.println("Motor BWD"); display.display(); showAjeetJain(); delay(1000);
     setMotors(0, 0);
     display.clearDisplay(); display.setCursor(0,0); display.println("Motor STOP"); display.display(); showAjeetJain(); delay(1000);
-
   } else if (mode == 1) { // Encoder
     unsigned long t0 = millis();
+    long l0 = encoderCountL, r0 = encoderCountR;
     while (digitalRead(BTN_START) == HIGH) {
       display.clearDisplay();
       display.setCursor(0,0);
@@ -190,7 +169,6 @@ void runTest(int mode) {
       delay(100);
       if (millis() - t0 > 5000) break;
     }
-
   } else if (mode == 2) { // MUX
     for (int k=0; k<10; k++) {
       display.clearDisplay();
@@ -211,7 +189,6 @@ void runTest(int mode) {
       showAjeetJain();
       delay(500);
     }
-
   } else if (mode == 3) { // Buttons
     for (int k=0; k<50; k++) {
       display.clearDisplay();
@@ -228,7 +205,6 @@ void runTest(int mode) {
       Serial.print("\tRESET: "); Serial.println(digitalRead(BTN_RESET) == LOW ? "PRESSED" : "RELEASED");
       delay(100);
     }
-
   } else if (mode == 4) { // Buzzer
     for (int k=0; k<5; k++) {
       digitalWrite(BUZZER_PIN, HIGH);
@@ -236,7 +212,6 @@ void runTest(int mode) {
       digitalWrite(BUZZER_PIN, LOW);
       display.clearDisplay(); display.setCursor(0,0); display.println("BUZZER OFF"); display.display(); showAjeetJain(); delay(300);
     }
-
   } else if (mode == 5) { // OLED
     display.clearDisplay();
     display.setTextSize(2);
@@ -251,13 +226,11 @@ void runTest(int mode) {
     showAjeetJain();
     delay(2000);
   }
-
   display.clearDisplay();
   display.setCursor(0,0);
   display.println("Done. Press MODE");
   display.display();
   showAjeetJain();
-
   // Wait for MODE to return to menu
   while (digitalRead(BTN_MODE) == HIGH) delay(10);
   delay(300);
