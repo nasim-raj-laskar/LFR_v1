@@ -1,3 +1,7 @@
+# Line Following Robot
+
+![](assets/bot-pic.jpg)
+
 ## PCB Attribution
 
 The Line Follower Robot (LFR) PCB used in this project is based on a design created by:
